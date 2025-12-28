@@ -34,6 +34,7 @@ import static java.util.Collections.emptyList;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import android.annotation.DurationMillisLong;
+import android.app.AppOpsManager;
 import android.content.ContentProviderClient;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -131,6 +132,11 @@ public class CloudProviderUtils {
         final List<String> allowlistedPackages =
                 ignoreAllowlist ? null : configStore.getAllowedCloudProviderPackages();
 
+        // Get AppOpsManager for checking user-enabled providers
+        final AppOpsManager appOpsManager = context.getSystemService(AppOpsManager.class);
+        final boolean allowUserEnabled = configStore.shouldAllowUserEnabledCloudProviders();
+        final String opStr = AppOpsManager.permissionToOp(MANAGE_CLOUD_MEDIA_PROVIDERS_PERMISSION);
+
         final Intent intent = new Intent(CloudMediaProviderContract.PROVIDER_INTERFACE);
         final List<ResolveInfo> allAvailableProviders = getAllCloudProvidersForUser(context,
                 intent, userHandle);
@@ -142,12 +148,38 @@ public class CloudProviderUtils {
                 continue;
             }
 
+            // Check if user has explicitly enabled this provider via AppOps.
+            // User-enabled providers don't need the signature readPermission.
+            boolean isUserEnabled = false;
+            if (allowUserEnabled && appOpsManager != null && opStr != null) {
+                int mode = appOpsManager.checkOpNoThrow(
+                        opStr,
+                        providerInfo.applicationInfo.uid,
+                        providerInfo.packageName);
+                isUserEnabled = (mode == AppOpsManager.MODE_ALLOWED);
+            }
+
+            if (isUserEnabled) {
+                // User explicitly enabled this provider - allow it
+                final CloudProviderInfo cloudProvider = new CloudProviderInfo(
+                        providerInfo.authority,
+                        providerInfo.applicationInfo.packageName,
+                        providerInfo.applicationInfo.uid);
+                providers.add(cloudProvider);
+                continue;
+            }
+
+            // For non-user-enabled providers, require the signature readPermission
             if (!MANAGE_CLOUD_MEDIA_PROVIDERS_PERMISSION.equals(providerInfo.readPermission)) {
                 // Provider does NOT have the right read permission.
                 continue;
             }
 
-            if (!ignoreAllowlist && !allowlistedPackages.contains(providerInfo.packageName)) {
+            // Check if provider is allowlisted
+            boolean isAllowed = ignoreAllowlist
+                    || allowlistedPackages.contains(providerInfo.packageName);
+
+            if (!isAllowed) {
                 // Provider is not allowlisted.
                 continue;
             }

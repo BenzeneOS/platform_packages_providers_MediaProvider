@@ -546,6 +546,11 @@
     <!-- Description of ACCESS_OWNER_PACKAGE_NAME permission-->
     <string name="permdesc_accessMediaOwnerPackageName">Allows the app to access owner package names of all accessible media files.</string>
 
+    <!-- Title of MANAGE_CLOUD_MEDIA_PROVIDERS permission-->
+    <string name="permlab_manageCloudMediaProviders">Cloud media provider access</string>
+    <!-- Description of MANAGE_CLOUD_MEDIA_PROVIDERS permission-->
+    <string name="permdesc_manageCloudMediaProviders">Allows this app to serve as a cloud media provider for the photo picker.</string>
+
     <!-- ========================= CATEGORIES AND ALBUMS STRINGS ========================= -->
     <!-- Device folders collection display name -->
     <string name="device_folders_collection_display_name" translation_description="Display name for the collection of local folders on the device. [CHAR_LIMIT=50]">"From this device"</string>
