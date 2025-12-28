@@ -16,6 +16,7 @@
 
 package com.android.photopicker.data
 
+import android.app.AppOpsManager
 import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
@@ -714,6 +715,7 @@ class DataServiceImpl(
         val enforceAllowlist = configSnapshot.flags.CLOUD_ENFORCE_PROVIDER_ALLOWLIST
         val allowlist = configSnapshot.flags.CLOUD_ALLOWED_PROVIDERS
         val intent = Intent(CloudMediaProviderContract.PROVIDER_INTERFACE)
+        val appOpsManager = appContext.getSystemService(AppOpsManager::class.java)
 
         try {
             val packageManager = appContext.getPackageManager()
@@ -724,9 +726,14 @@ class DataServiceImpl(
                 allProviders
                     .filter {
                         it.providerInfo.authority != null &&
-                            CloudMediaProviderContract.MANAGE_CLOUD_MEDIA_PROVIDERS_PERMISSION
-                                .equals(it.providerInfo.readPermission) &&
-                            (!enforceAllowlist || allowlist.contains(it.providerInfo.packageName))
+                            (
+                                // User-enabled providers don't need the signature readPermission
+                                isUserEnabledViaAppOps(appOpsManager, it) ||
+                                // Allowlisted providers need the signature readPermission
+                                (CloudMediaProviderContract.MANAGE_CLOUD_MEDIA_PROVIDERS_PERMISSION
+                                    .equals(it.providerInfo.readPermission) &&
+                                    (!enforceAllowlist || allowlist.contains(it.providerInfo.packageName)))
+                            )
                     }
                     .map {
                         try {
@@ -757,6 +764,26 @@ class DataServiceImpl(
             Log.e(DataService.TAG, "An error in getting all available providers.", e)
             return emptyList()
         }
+    }
+
+    /**
+     * Checks if the user has explicitly enabled this provider via AppOps.
+     */
+    private fun isUserEnabledViaAppOps(
+        appOpsManager: AppOpsManager?,
+        resolveInfo: ResolveInfo
+    ): Boolean {
+        if (appOpsManager == null) return false
+        val providerInfo = resolveInfo.providerInfo
+        val opStr = AppOpsManager.permissionToOp(
+            CloudMediaProviderContract.MANAGE_CLOUD_MEDIA_PROVIDERS_PERMISSION
+        ) ?: return false
+        val mode = appOpsManager.checkOpNoThrow(
+            opStr,
+            providerInfo.applicationInfo.uid,
+            providerInfo.packageName
+        )
+        return mode == AppOpsManager.MODE_ALLOWED
     }
 
     /**

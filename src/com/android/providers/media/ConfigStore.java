@@ -143,6 +143,16 @@ public interface ConfigStore {
     }
 
     /**
+     * @return if apps that the user has explicitly enabled via AppOps should be allowed
+     *         to serve as Cloud Media Providers, regardless of the allowlist.
+     * @see #isCloudMediaInPhotoPickerEnabled()
+     * @see #getAllowedCloudProviderPackages()
+     */
+    default boolean shouldAllowUserEnabledCloudProviders() {
+        return true;
+    }
+
+    /**
      * @return if {@link com.android.providers.media.photopicker.PhotoPickerActivity} should preload
      *         selected media items before "returning"
      *         ({@link com.android.providers.media.photopicker.PhotoPickerActivity#setResultAndFinishSelf()})
@@ -407,6 +417,11 @@ public interface ConfigStore {
                             NAMESPACE_MEDIAPROVIDER,
                             KEY_CLOUD_MEDIA_FEATURE_ENABLED,
                             DEFAULT_CLOUD_MEDIA_IN_PHOTO_PICKER_ENABLED);
+
+            // If user-enabled providers are allowed, the feature is enabled regardless of allowlist
+            if (shouldAllowUserEnabledCloudProviders()) {
+                return isEnabled;
+            }
 
             List<String> allowList =
                     getStringArrayDeviceConfig(

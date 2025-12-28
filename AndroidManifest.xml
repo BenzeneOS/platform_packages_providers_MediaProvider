@@ -70,7 +70,9 @@
                 android:protectionLevel="normal" />
 
     <permission android:name="com.android.providers.media.permission.MANAGE_CLOUD_MEDIA_PROVIDERS"
-                android:protectionLevel="signature" />
+                android:label="@string/permlab_manageCloudMediaProviders"
+                android:description="@string/permdesc_manageCloudMediaProviders"
+                android:protectionLevel="signature|appop" />
 
     <permission android:name="com.android.providers.media.permission.BIND_MEDIA_COGNITION_SERVICE"
                 android:protectionLevel="signature"/>
