@@ -1358,6 +1358,67 @@ public class MediaProvider extends ContentProvider {
         }
     };
 
+    /**
+     * Revokes the grants held on {@code oldRow}'s path if the row no longer lives there.
+     */
+    private void revokeUriPermissionGrantsOnPathChange(DatabaseHelper helper, FileRow oldRow,
+            FileRow newRow) {
+        final String oldPath = oldRow.getPath();
+        final String currentPath = getPathForFileId(helper, newRow.getId());
+        if (oldPath == null || currentPath == null || oldPath.equalsIgnoreCase(currentPath)) {
+            return;
+        }
+
+        revokeUriPermissionGrantsOnDocumentsProvider(oldRow);
+    }
+
+    private String getPathForFileId(DatabaseHelper helper, long id) {
+        return helper.runWithoutTransaction((db) -> {
+            try (Cursor c = db.query("files", new String[] { MediaColumns.DATA },
+                    MediaColumns._ID + "=?", new String[] { String.valueOf(id) },
+                    null, null, null)) {
+                if (!c.moveToFirst()) {
+                    return null;
+                }
+                return c.getString(0);
+            }
+        });
+    }
+
+    /**
+     * Asks the documents providers to drop the grants they issued for the given row's path. Their
+     * document ids are derived from the path, so a grant survives the file it was issued for and
+     * would otherwise apply to whatever later occupies that path.
+     */
+    private void revokeUriPermissionGrantsOnDocumentsProvider(FileRow row) {
+        if (row.isTrashed()) {
+            return;
+        }
+
+        final String path = row.getPath();
+        final boolean isDownload = isDownload(path);
+
+        final Bundle extras = new Bundle();
+        extras.putString("old_path", path);
+        try {
+            getContext().getContentResolver().call(getExternalStorageProviderAuthority(),
+                    "revoke_uri_permission", null, extras);
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to revoke permissions for " + path
+                    + " from ExternalStorageProvider", e);
+        }
+
+        if (isDownload) {
+            try {
+                getContext().getContentResolver().call(getDownloadsProviderAuthority(),
+                        "revoke_uri_permission", null, extras);
+            } catch (Exception e) {
+                Log.w(TAG, "Failed to revoke permissions for " + path
+                        + " from DownloadStorageProvider", e);
+            }
+        }
+    }
+
     private void updateNextGenerationNumber(DatabaseHelper helper) {
         if (!DatabaseBackupAndRecovery.isNextGenerationFlagEnabled()) {
             return;
